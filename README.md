@@ -49,7 +49,7 @@ Electrical specifications :
 
 3.Maximum load current =10A
 
-4. In put Voltage = Solar panel with Open circuit voltage from 12 to 25V
+4.In put Voltage = Solar panel with Open circuit voltage from 12 to 25V
 
 5.Solar panel power = 50W
 
