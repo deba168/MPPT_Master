@@ -1,30 +1,69 @@
-//------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------
+// ARDUINO MPPT SOLAR CHARGE CONTROLLER (Version-3) 
+//  Author: Debasish Dutta/deba168
+//          www.opengreenenergy.com
 //
-// ARDUINO SOLAR CHARGE CONTROLLER (MPPT)  
+//  This code is for an arduino Nano based Solar MPPT charge controller.
+//  This code is a modified version of sample code from www.timnolan.com
+//  updated on 15/06/2015
+
+////  Specifications :  //////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-//  This code is a modified version of sample code from   http://www.timnolan.com/.
-//  modified by deba168
-//  dated 08/02/2015
-// Last updated on 26/03/2015
-//------------------------------------------------------------------------------------------------------
+//    1.Solar panel power = 50W                                            
+
+//    2.Rated Battery Voltage= 12V ( lead acid type )
+
+//    3.Maximum current = 5A                                                                                                //
+
+//    4.Maximum load current =10A                                                                                            //
+
+//    5. In put Voltage = Solar panel with Open circuit voltage from 17 to 25V                                               //
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 
 #include "TimerOne.h"                // using Timer1 library from http://www.arduino.cc/playground/Code/Timer1
 #include <LiquidCrystal_I2C.h>      // using the LCD I2C Library from https://bitbucket.org/fmalpartida/new-liquidcrystal/downloads
 #include <Wire.h>  
-// SDA....>A4
-// SCL....>A5
-//------------------------------------------------------------------------------------------------------
-// definitions
 
-#define SOL_AMPS_CHAN 1                // Defining the adc channel to read solar amps
+//----------------------------------------------------------------------------------------------------------
+ 
+//////// Arduino pins Connections//////////////////////////////////////////////////////////////////////////////////
+
+// A0 - Voltage divider (solar)
+// A1 - ACS 712 Out
+// A2 - Voltage divider (battery)
+// A4 - LCD SDA
+// A5 - LCD SCL
+// D2 - ESP8266 Tx
+// D3 - ESP8266 Rx through the voltage divider
+// D5 - LCD back control button
+// D6 - Load Control 
+// D8 - 2104 MOSFET driver SD
+// D9 - 2104 MOSFET driver IN  
+// D11- Green LED
+// D12- Yellow LED
+// D13- Red LED
+
+// Full scheatic is given at http://www.instructables.com/files/orig/F9A/LLR8/IAPASVA1/F9ALLR8IAPASVA1.pdf
+
+///////// Definitions /////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 #define SOL_VOLTS_CHAN 0               // defining the adc channel to read solar volts
+#define SOL_AMPS_CHAN 1                // Defining the adc channel to read solar amps
 #define BAT_VOLTS_CHAN 2               // defining the adc channel to read battery volts
 
 
 #define AVG_NUM 8                      // number of iterations of the adc routine to average the adc readings
-#define SOL_AMPS_SCALE 0.02637        // the scaling value for raw adc reading to get solar amps   // 5/(1024*0.185)
-#define SOL_VOLTS_SCALE 0.02928       // the scaling value for raw adc reading to get solar volts  // (5/1024)*(R1+R2)/R2
-#define BAT_VOLTS_SCALE 0.02928        // the scaling value for raw adc reading to get battery volts 
+
+// ACS 712 Current Sensor is used. Current Measured = (5/(1024 *0.185))*ADC - (2.5/0.185) 
+
+#define SOL_AMPS_SCALE  0.026393581        // the scaling value for raw adc reading to get solar amps   // 5/(1024*0.185)
+#define SOL_VOLTS_SCALE 0.029296875        // the scaling value for raw adc reading to get solar volts  // (5/1024)*(R1+R2)/R2 // R1=100k and R2=20k
+#define BAT_VOLTS_SCALE 0.029442815       // the scaling value for raw adc reading to get battery volts 
 
 #define PWM_PIN 9                    // the output pin for the pwm (only pin 9 avaliable for timer 1 at 50kHz)
 #define PWM_ENABLE_PIN 8            // pin used to control shutoff function of the IR2104 MOSFET driver (hight the mosfet driver is on)
@@ -49,7 +88,7 @@
 #define MIN_BAT_VOLTS 11.00         //value of battery voltage // this is 11.00 volts          
 #define MAX_BAT_VOLTS 14.10         //value of battery voltage// this is 14.10 volts  
 #define HIGH_BAT_VOLTS 13.00          //value of battery voltage // this is 13.00 volts 
-#define LVD 11.5          //Low voltage disconnect setting for a 12V system
+#define LVD 11.5                       //Low voltage disconnect setting for a 12V system
 #define OFF_NUM 9                  // number of iterations of off charger state
   
 //------------------------------------------------------------------------------------------------------
@@ -63,7 +102,7 @@
   
 //-----------------------------------------------------------------------------------------------------
 // Defining lcd back light pin
-#define BACK_LIGHT_PIN 5       // pin-2 is used to control the load
+#define BACK_LIGHT_PIN 5       // pin-5 is used to control the lcd back light
 //------------------------------------------------------------------------------------------------------
 /////////////////////////////////////////BIT MAP ARRAY//////////////////////////////////////////////////
 //-------------------------------------------------------------------------------------------------------
@@ -125,8 +164,8 @@ enum charger_mode {off, on, bulk, bat_float} charger_state;    // enumerated var
 // Set the pins on the I2C chip used for LCD connections:
 //                    addr, en,rw,rs,d4,d5,d6,d7,bl,blpol
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I2C address
-//int back_light_Pin = 5;
-//int load_pin =6;
+long time = 0;                // variable to store time the back light control button was pressed in millis
+int load_pin = 6;
 int back_light_pin_State = 0;
 int load_status=0;
 //------------------------------------------------------------------------------------------------------
@@ -140,32 +179,36 @@ void setup()                            // run once, when the sketch starts
   pinMode(PWM_ENABLE_PIN, OUTPUT);     // sets the digital pin as output
   Timer1.initialize(20);               // initialize timer1, and set a 20uS period
   Timer1.pwm(PWM_PIN, 0);              // setup pwm on pin 9, 0% duty cycle
-  TURN_OFF_MOSFETS;                     //turn off MOSFET driver chip
+  TURN_OFF_MOSFETS;                    //turn off MOSFET driver chip
   Timer1.attachInterrupt(callback);    // attaches callback() as a timer overflow interrupt
-  Serial.begin(9600);   // open the serial port at 38400 bps:
+  Serial.begin(9600);                  // open the serial port at 38400 bps:
   pwm = PWM_START;                     //starting value for pwm  
-  charger_state = off;                  // start with charger state as off
+  charger_state = off;                 // start with charger state as off
   pinMode(BACK_LIGHT_PIN, INPUT);
   pinMode(LOAD_PIN,OUTPUT);
-  digitalWrite(LOAD_PIN,LOW);  // default load state is OFF
-  digitalWrite(BACK_LIGHT_PIN,LOW);  // default LCd back light is OFF
-  lcd.begin(20,4);   // initialize the lcd for 16 chars 2 lines, turn on backlight
+  digitalWrite(LOAD_PIN,LOW);          // default load state is OFF
+  lcd.begin(20,4);                     // initialize the lcd for 16 chars 2 lines, turn on backlight
   lcd.noBacklight(); 
   lcd.createChar(1,solar);
   lcd.createChar(2,battery);
   lcd.createChar(3,_PWM);
 }
+
 //------------------------------------------------------------------------------------------------------
-// This is interrupt service routine for Timer1 that occurs every 20uS.
-//
+// Main loop
 //------------------------------------------------------------------------------------------------------
-void callback()
+void loop()                         
 {
-  if (interrupt_counter++ > ONE_SECOND) {        //increment interrupt_counter until one second has passed
-    interrupt_counter = 0;  
-    seconds++;                                   //then increment seconds counter
-  }
+  read_data();                         //read data from inputs
+  run_charger();                      //run the charger state machine
+  print_data();                      //print data
+  load_control();                    // control the connected load
+  led_output();                      // led indication
+  lcd_display();                    // lcd display
+  
 }
+
+
 //------------------------------------------------------------------------------------------------------
 // This routine reads and averages the analog inputs for this system, solar volts, solar amps and 
 // battery volts. 
@@ -184,6 +227,29 @@ int read_adc(int channel){
   return(sum / AVG_NUM);                // divide sum by AVG_NUM to get average and return it
 }
 
+//------------------------------------------------------------------------------------------------------
+// This routine reads all the analog input values for the system. Then it multiplies them by the scale
+// factor to get actual value in volts or amps. 
+//------------------------------------------------------------------------------------------------------
+void read_data(void) {
+  
+  sol_amps =  (read_adc(SOL_AMPS_CHAN)  * SOL_AMPS_SCALE -13.51);    //input of solar amps
+  sol_volts =  read_adc(SOL_VOLTS_CHAN) * SOL_VOLTS_SCALE;   //input of solar volts 
+  bat_volts =  read_adc(BAT_VOLTS_CHAN) * BAT_VOLTS_SCALE;  //input of battery volts 
+  sol_watts = sol_amps * sol_volts ;   //calculations of solar watts                  
+}
+
+//------------------------------------------------------------------------------------------------------
+// This is interrupt service routine for Timer1 that occurs every 20uS.
+//
+//------------------------------------------------------------------------------------------------------
+void callback()
+{
+  if (interrupt_counter++ > ONE_SECOND) {        //increment interrupt_counter until one second has passed
+    interrupt_counter = 0;  
+    seconds++;                                   //then increment seconds counter
+  }
+}
 
 //------------------------------------------------------------------------------------------------------
 // This routine uses the Timer1.pwm function to set the pwm duty cycle.
@@ -204,60 +270,7 @@ void set_pwm_duty(void) {
     Timer1.pwm(PWM_PIN,(PWM_FULL - 1), 1000);          // keep switching so set duty cycle at 99.9% and slow down to 1000uS period 
     //Timer1.pwm(PWM_PIN,(PWM_FULL - 1));              
   }												
-}													
-//------------------------------------------------------------------------------------------------------
-// This routine prints all the data out to the serial port.
-//------------------------------------------------------------------------------------------------------
-void print_data(void) {
-  
-  Serial.print(seconds,DEC);
-  Serial.print("      ");
-
-  Serial.print("Charging = ");
-  if (charger_state == on) Serial.print("on   ");
-  else if (charger_state == off) Serial.print("off  ");
-  else if (charger_state == bulk) Serial.print("bulk ");
-  else if (charger_state == bat_float) Serial.print("float");
- Serial.print("      ");
-
-  Serial.print("pwm = ");
-  Serial.print(pwm,DEC);
-  Serial.print("      ");
-
-  Serial.print("Current (panel) = ");
-  //print_int100_dec2(sol_amps);
-  Serial.print(sol_amps);
- Serial.print("      ");
-
-  Serial.print("Voltage (panel) = ");
-  Serial.print(sol_volts);
-  //print_int100_dec2(sol_volts);
-  Serial.print("      ");
-
-  Serial.print("Power (panel) = ");
-  Serial.print(sol_volts);
- // print_int100_dec2(sol_watts);
-  Serial.print("      ");
-
-  Serial.print("Battery Voltage = ");
-  Serial.print(bat_volts);
-  //print_int100_dec2(bat_volts);
- Serial.print("      ");
-
-  Serial.print("\n\r");
-  delay(1000);
-}
-//------------------------------------------------------------------------------------------------------
-// This routine reads all the analog input values for the system. Then it multiplies them by the scale
-// factor to get actual value in volts or amps. 
-//------------------------------------------------------------------------------------------------------
-void read_data(void) {
-  
-  sol_amps =  (read_adc(SOL_AMPS_CHAN)  * SOL_AMPS_SCALE -13.51);    //input of solar amps
-  sol_volts =  read_adc(SOL_VOLTS_CHAN) * SOL_VOLTS_SCALE;   //input of solar volts 
-  bat_volts =  read_adc(BAT_VOLTS_CHAN) * BAT_VOLTS_SCALE;  //input of battery volts 
-  sol_watts = sol_amps * sol_volts ;   //calculations of solar watts                  
-}
+}	
 
 //------------------------------------------------------------------------------------------------------
 // This routine is the charger state machine. It has four states on, off, bulk and float.
@@ -367,26 +380,7 @@ void run_charger(void) {
       break;
   }
 }
-//------------------------------------------------------------------------------------------------------
-// Main loop.
-//
-//------------------------------------------------------------------------------------------------------
-void loop()                         
-{
-  read_data();                         //read data from inputs
-  run_charger();                      //run the charger state machine
-  print_data();                      //print data
-  load_control();                    // control the connected load
-  led_output();                      // led indication
-  lcd_display();                    // lcd display
-  
-}
 
-//------------------------------------------------------------------------------------------------------
-//
-//This function displays the currnet state with the help ot the 3 LEDs
-//
-//------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
 /////////////////////////////////////////////LOAD CONTROL/////////////////////////////////////////////////////
 //----------------------------------------------------------------------------------------------------------------------  
@@ -412,6 +406,50 @@ void load_control()
    digitalWrite(LOAD_PIN, HIGH);
  }
 }
+
+//------------------------------------------------------------------------------------------------------
+// This routine prints all the data out to the serial port.
+//------------------------------------------------------------------------------------------------------
+void print_data(void) {
+  
+  Serial.print(seconds,DEC);
+  Serial.print("      ");
+
+  Serial.print("Charging = ");
+  if (charger_state == on) Serial.print("on   ");
+  else if (charger_state == off) Serial.print("off  ");
+  else if (charger_state == bulk) Serial.print("bulk ");
+  else if (charger_state == bat_float) Serial.print("float");
+ Serial.print("      ");
+
+  Serial.print("pwm = ");
+  Serial.print(pwm,DEC);
+  Serial.print("      ");
+
+  Serial.print("Current (panel) = ");
+  //print_int100_dec2(sol_amps);
+  Serial.print(sol_amps);
+ Serial.print("      ");
+
+  Serial.print("Voltage (panel) = ");
+  Serial.print(sol_volts);
+  //print_int100_dec2(sol_volts);
+  Serial.print("      ");
+
+  Serial.print("Power (panel) = ");
+  Serial.print(sol_volts);
+ // print_int100_dec2(sol_watts);
+  Serial.print("      ");
+
+  Serial.print("Battery Voltage = ");
+  Serial.print(bat_volts);
+  //print_int100_dec2(bat_volts);
+ Serial.print("      ");
+
+  Serial.print("\n\r");
+  delay(100);
+}
+
 //-------------------------------------------------------------------------------------------------
 //---------------------------------Led Indication--------------------------------------------------
 //-------------------------------------------------------------------------------------------------
@@ -447,6 +485,7 @@ void leds_off_all(void)
   digitalWrite(LED_RED, LOW);
   digitalWrite(LED_YELLOW, LOW);
 }
+
 //------------------------------------------------------------------------------------------------------
 //-------------------------- LCD DISPLAY --------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------
@@ -455,12 +494,9 @@ void lcd_display()
   back_light_pin_State = digitalRead(BACK_LIGHT_PIN);
   if (back_light_pin_State == HIGH)
   {
-    lcd.backlight();// finish with backlight on 
-  // Wait for 10 seconds and then turn off the display and backlight.
-    delay(15000);
-    lcd.noBacklight();
+    time = millis();                        // If any of the buttons are pressed, save the time in millis to "time"
   }
-  
+ 
  lcd.setCursor(0, 0);
  lcd.print("SOL");
  lcd.setCursor(4, 0);
@@ -541,5 +577,13 @@ void lcd_display()
  else
  {
    lcd.print("Off");
- } 
+ }
+ backLight_timer();                      // call the backlight timer function in every loop 
+}
+
+void backLight_timer(){
+  if((millis() - time) <= 15000) // if it's been less than the 15 secs, turn the backlight on
+      lcd.backlight();           // finish with backlight on  
+  else 
+      lcd.noBacklight();         // if it's been more than 15 secs, turn the backlight off
 }
