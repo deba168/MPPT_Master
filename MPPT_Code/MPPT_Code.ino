@@ -5,7 +5,7 @@
 //
 //  This code is for an arduino Nano based Solar MPPT charge controller.
 //  This code is a modified version of sample code from www.timnolan.com
-//  updated 21/06/2015
+//  updated 06/21/2015
 //
 //  Mods by Aplavins 06/19/2015 
 
@@ -415,23 +415,19 @@ void print_data(void) {
   Serial.print("      ");
 
   Serial.print("Current (panel) = ");
-  //print_int100_dec2(sol_amps);
   Serial.print(sol_amps);
   Serial.print("      ");
 
   Serial.print("Voltage (panel) = ");
   Serial.print(sol_volts);
-  //print_int100_dec2(sol_volts);
   Serial.print("      ");
 
   Serial.print("Power (panel) = ");
   Serial.print(sol_volts);
-  // print_int100_dec2(sol_watts);
   Serial.print("      ");
 
   Serial.print("Battery Voltage = ");
   Serial.print(bat_volts);
-  //print_int100_dec2(bat_volts);
   Serial.print("      ");
 
   Serial.print("\n\r");
