@@ -1,7 +1,7 @@
 //----------------------------------------------------------------------------------------------------
 // ARDUINO MPPT SOLAR CHARGE CONTROLLER (Version-3) 
 //  Author: Debasish Dutta/deba168
-//          www.opengreenenergy.com
+//          www.opengreenenergy.in
 //
 //  This code is for an arduino Nano based Solar MPPT charge controller.
 //  This code is a modified version of sample code from www.timnolan.com
