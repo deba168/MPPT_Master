@@ -395,6 +395,7 @@ void loop()
   led_output();                      // led indication
   lcd_display();                    // lcd display
   wifi_datalog();
+  delay(500);
 }
 
 //------------------------------------------------------------------------------------------------------
@@ -551,19 +552,32 @@ void lcd_display()
  lcd.setCursor(15,3);
  if (load_status == 1)
  {
-    lcd.print("On");
+    lcd.print("On  ");
  }
  else
  {
-   lcd.print("Off");
+   lcd.print("Off ");
  } 
+ spinner();
 }
+void spinner(void) {
+  static int cspinner;
+  static char spinner_chars[] = { '/','-','\\','|' };
+  cspinner++;
+  lcd.print(spinner_chars[cspinner%4]);
+}
+
 //-------------------------------------------------------------------------
 //----------------------------- ESP8266 WiFi ------------------------------
 //--------------------------Plot System data on thingspeak.com-------------
 //-------------------------------------------------------------------------
 void wifi_datalog()
 {
+  // thingspeak needs 15 sec delay between updates
+  static int lastlogged;
+  if ( seconds - lastlogged < 16 )
+      return;
+  lastlogged = seconds;
  // convert to string
   char buf[16];
   String strTemp = dtostrf( sol_volts, 4, 1, buf);
@@ -600,8 +614,5 @@ void wifi_datalog()
     ser.println("AT+CIPCLOSE");
     // alert user
     Serial.println("AT+CIPCLOSE");
-  }
-    
-  // thingspeak needs 15 sec delay between updates
-  delay(16000);  
+  } 
 }
