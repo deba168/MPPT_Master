@@ -17,6 +17,8 @@
 //------------------------------------------------------------------------------------------------------
 // definitions
 
+#define ENABLE_DATALOGGER 0
+
 #define SOL_AMPS_CHAN 1                // Defining the adc channel to read solar amps
 #define SOL_VOLTS_CHAN 0               // defining the adc channel to read solar volts
 #define BAT_VOLTS_CHAN 2               // defining the adc channel to read battery volts
@@ -145,6 +147,11 @@ SoftwareSerial ser(2,3); // RX, TX
 //------------------------------------------------------------------------------------------------------
 void setup()                            // run once, when the sketch starts
 {
+  lcd.begin(20,4);   // initialize the lcd for 16 chars 2 lines, turn on backlight
+  lcd.backlight();
+  lcd.createChar(1,solar);
+  lcd.createChar(2,battery);
+  lcd.createChar(3,_PWM);
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_YELLOW, OUTPUT);
@@ -164,11 +171,16 @@ void setup()                            // run once, when the sketch starts
   pinMode(LOAD_PIN,OUTPUT);
   digitalWrite(LOAD_PIN,LOW);  // default load state is OFF
   digitalWrite(BACK_LIGHT_PIN,LOW);  // default LCd back light is OFF
-  lcd.begin(20,4);   // initialize the lcd for 16 chars 2 lines, turn on backlight
-  lcd.noBacklight(); 
-  lcd.createChar(1,solar);
-  lcd.createChar(2,battery);
-  lcd.createChar(3,_PWM);
+
+  // display the constant stuff on the LCD
+  lcd.setCursor(0, 0);
+  lcd.print("SOL");
+  lcd.setCursor(4, 0);
+  lcd.write(1);
+  lcd.setCursor(8, 0);
+  lcd.print("BAT");
+  lcd.setCursor(12, 0);
+  lcd.write(2);
 }
 //------------------------------------------------------------------------------------------------------
 // This is interrupt service routine for Timer1 that occurs every 20uS.
@@ -431,79 +443,67 @@ void load_control()
 //-------------------------------------------------------------------------------------------------
 //---------------------------------Led Indication--------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-
+// light an individual LED
+// we remember which one was on before in last_lit and turn it off if different
+void light_led(char pin)
+{
+  static char last_lit;
+  if (last_lit == pin)
+      return;
+  if (last_lit != 0)
+      digitalWrite(last_lit, LOW);
+  digitalWrite(pin, HIGH);
+  last_lit = pin;
+}
+// display the current state via LED as follows:
+// YELLOW means overvoltage (over 14.1 volts)
+// RED means undervoltage (under 11.9 volts)
+// GREEN is between 11.9 and 14.1 volts
 void led_output(void)
 {
+  static char last_lit;
   if(bat_volts > 14.1 )
-  {
-      leds_off_all();
-      digitalWrite(LED_YELLOW, HIGH); 
-  } 
-  else if(bat_volts > 11.9 && bat_volts < 14.1)
-  {
-      leds_off_all();
-      digitalWrite(LED_GREEN, HIGH);
-  } 
-  else if(bat_volts < 11.8)
-  {
-      leds_off_all;
-      digitalWrite(LED_RED, HIGH); 
-   } 
-  
+      light_led(LED_YELLOW);
+  else if(bat_volts > 11.9)
+      light_led(LED_GREEN);
+  else
+      light_led(LED_RED);
 }
 
-//------------------------------------------------------------------------------------------------------
-//
-// This function is used to turn all the leds off
-//
-//------------------------------------------------------------------------------------------------------
-void leds_off_all(void)
-{
-  digitalWrite(LED_GREEN, LOW);
-  digitalWrite(LED_RED, LOW);
-  digitalWrite(LED_YELLOW, LOW);
-}
 //------------------------------------------------------------------------------------------------------
 //-------------------------- LCD DISPLAY --------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------
 void lcd_display()
 {
+  static bool current_backlight_state = -1;
   back_light_pin_State = digitalRead(BACK_LIGHT_PIN);
-  if (back_light_pin_State == HIGH)
-  {
-    lcd.backlight();// finish with backlight on 
-  // Wait for 10 seconds and then turn off the display and backlight.
-    delay(15000);
-    lcd.noBacklight();
+  if (current_backlight_state != back_light_pin_State) {
+    current_backlight_state = back_light_pin_State;
+    if (back_light_pin_State == HIGH)
+      lcd.backlight();// finish with backlight on
+    else
+      lcd.noBacklight();
   }
-  
- lcd.setCursor(0, 0);
- lcd.print("SOL");
- lcd.setCursor(4, 0);
- lcd.write(1);
+
  lcd.setCursor(0, 1);
  lcd.print(sol_volts);
- lcd.print("V"); 
+ lcd.print("V ");
  lcd.setCursor(0, 2);
  lcd.print(sol_amps);
  lcd.print("A");  
  lcd.setCursor(0, 3);
  lcd.print(sol_watts);
  lcd.print("W "); 
- lcd.setCursor(8, 0);
- lcd.print("BAT");
- lcd.setCursor(12, 0);
- lcd.write(2);
  lcd.setCursor(8, 1);
  lcd.print(bat_volts);
  lcd.setCursor(8,2);
- 
+
  if (charger_state == on) 
- lcd.print("on");
+ lcd.print("on   ");
  else if (charger_state == off)
- lcd.print("off");
+ lcd.print("off  ");
  else if (charger_state == bulk)
- lcd.print("bulk");
+ lcd.print("bulk ");
  else if (charger_state == bat_float)
  lcd.print("float");
  
@@ -511,28 +511,14 @@ void lcd_display()
  //--------------------Battery State Of Charge ---------------
  //-----------------------------------------------------------
  lcd.setCursor(8,3);
- if ( bat_volts >= 12.7)
- lcd.print( "100%");
- else if (bat_volts >= 12.5 && bat_volts < 12.7)
- lcd.print( "90%");
- else if (bat_volts >= 12.42 && bat_volts < 12.5)
- lcd.print( "80%");
- else if (bat_volts >= 12.32 && bat_volts < 12.42)
- lcd.print( "70%");
- else if (bat_volts >= 12.2 && bat_volts < 12.32)
- lcd.print( "60%");
- else if (bat_volts >= 12.06 && bat_volts < 12.2)
- lcd.print( "50%");
- else if (bat_volts >= 11.90 && bat_volts < 12.06)
- lcd.print( "40%");
- else if (bat_volts >= 11.75 && bat_volts < 11.90)
- lcd.print( "30%");
- else if (bat_volts >= 11.58 && bat_volts < 11.75)
- lcd.print( "20%");
- else if (bat_volts >= 11.31 && bat_volts < 11.58)
- lcd.print( "10%");
- else if (bat_volts < 11.3)
- lcd.print( "0%");
+ int pct = 100.0*(bat_volts - 11.3)/(12.7 - 11.3);
+ if (pct < 0)
+     pct = 0;
+ else if (pct > 100)
+     pct = 100;
+ pct = pct - (pct%10);
+ lcd.print(pct);
+ lcd.print("%  ");
  
 //--------------------------------------------------------------------- 
 //------------------Duty Cycle-----------------------------------------
