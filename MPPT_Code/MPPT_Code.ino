@@ -368,9 +368,11 @@ void run_charger(void) {
         off_count--;                                        // anything, this is to allow the battery voltage to settle down to see if the  
       }                                                     // battery has been disconnected
       else if ((bat_volts > BATT_FLOAT) && (sol_volts > bat_volts)) {
+        TURN_ON_MOSFETS;
         charger_state = bat_float;                          // if battery voltage is still high and solar volts are high
       }    
       else if ((bat_volts > MIN_BAT_VOLTS) && (bat_volts < BATT_FLOAT) && (sol_volts > bat_volts)) {
+        TURN_ON_MOSFETS;
         charger_state = bulk;
       }
       break;
