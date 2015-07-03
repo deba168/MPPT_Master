@@ -187,6 +187,9 @@ LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  // Set the LCD I
 
 void setup()                           // run once, when the sketch starts
 {
+  pinMode(PWM_ENABLE_PIN, OUTPUT);     // sets the digital pin as output
+  TURN_OFF_MOSFETS;                    // turn off MOSFET driver chip
+  charger_state = off;                 // start with charger state as off
   lcd.begin(20,4);   // initialize the lcd for 16 chars 2 lines, turn on backlight
   lcd.backlight();
   lcd.createChar(1,solar);
@@ -195,16 +198,13 @@ void setup()                           // run once, when the sketch starts
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_YELLOW, OUTPUT);
-  pinMode(PWM_ENABLE_PIN, OUTPUT);     // sets the digital pin as output
   Timer1.initialize(20);               // initialize timer1, and set a 20uS period
   Timer1.pwm(PWM_PIN, 0);              // setup pwm on pin 9, 0% duty cycle
-  TURN_ON_MOSFETS;                     // turn off MOSFET driver chip
   Timer1.attachInterrupt(callback);    // attaches callback() as a timer overflow interrupt
   Serial.begin(9600);                  // open the serial port at 9600 bps:
   ser.begin(9600);       // enable software serial
   ser.println("AT+RST");  // reset ESP8266
   pwm = PWM_START;                     //starting value for pwm  
-  charger_state = off;                  // start with charger state as off
   pinMode(BACK_LIGHT_PIN, INPUT);
   pinMode(LOAD_PIN,OUTPUT);
   digitalWrite(LOAD_PIN,LOW);  // default load state is OFF
