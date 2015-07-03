@@ -397,9 +397,11 @@ void run_charger(void) {
       }                                                     // battery has been disconnected
       else if ((bat_volts > BATT_FLOAT) && (sol_volts > bat_volts)) {
         charger_state = bat_float;                          // if battery voltage is still high and solar volts are high
+        TURN_ON_MOSFETS;
       }    
       else if ((bat_volts > MIN_BAT_VOLTS) && (bat_volts < BATT_FLOAT) && (sol_volts > bat_volts)) {
         charger_state = bulk;
+        TURN_ON_MOSFETS;
       }
       break;
     default:
@@ -585,9 +587,7 @@ void backLight_timer(){
   if((millis() - time) <= 15000)         // if it's been less than the 15 secs, turn the backlight on
       lcd.backlight();                   // finish with backlight on  
   else 
-      lcd.noBacklight();                 // if it's been more than 15 secs, turn the backlight off 
-      
-
+      lcd.noBacklight();                 // if it's been more than 15 secs, turn the backlight off
 }
 void spinner(void) {
   static int cspinner;
