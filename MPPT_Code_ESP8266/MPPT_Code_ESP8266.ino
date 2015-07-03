@@ -407,21 +407,6 @@ void run_charger(void) {
       break;
   }
 }
-//------------------------------------------------------------------------------------------------------
-// Main loop.
-//
-//------------------------------------------------------------------------------------------------------
-void loop()                         
-{
-  read_data();                         //read data from inputs
-  run_charger();                      //run the charger state machine
-  //print_data();                      //print data
-  load_control();                    // control the connected load
-  led_output();                      // led indication
-  lcd_display();                    // lcd display
-  wifi_datalog();
-  delay(500);
-}
 
 //----------------------------------------------------------------------------------------------------------------------
 /////////////////////////////////////////////LOAD CONTROL/////////////////////////////////////////////////////
@@ -600,8 +585,9 @@ void backLight_timer(){
   if((millis() - time) <= 15000)         // if it's been less than the 15 secs, turn the backlight on
       lcd.backlight();                   // finish with backlight on  
   else 
-      lcd.noBacklight();                 // if it's been more than 15 secs, turn the backlight off
->>>>>>> bad0d746d2a86af933d66a9ca0fdc61c6db8619a
+      lcd.noBacklight();                 // if it's been more than 15 secs, turn the backlight off 
+      
+
 }
 void spinner(void) {
   static int cspinner;
