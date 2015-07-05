@@ -54,7 +54,8 @@
 ///////// Definitions /////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-#define ENABLE_DATALOGGER 0
+// Turn this on to use the ESP8266 chip. If you set this to 0, the periodic updates will not happen
+#define ENABLE_DATALOGGER 1
 
 #define SOL_AMPS_CHAN 1                // Defining the adc channel to read solar amps
 #define SOL_VOLTS_CHAN 0               // defining the adc channel to read solar volts
@@ -190,6 +191,7 @@ void setup()                           // run once, when the sketch starts
   pinMode(PWM_ENABLE_PIN, OUTPUT);     // sets the digital pin as output
   TURN_OFF_MOSFETS;                    // turn off MOSFET driver chip
   charger_state = off;                 // start with charger state as off
+
   lcd.begin(20,4);   // initialize the lcd for 16 chars 2 lines, turn on backlight
   lcd.backlight();
   lcd.createChar(1,solar);
@@ -224,7 +226,7 @@ void setup()                           // run once, when the sketch starts
 //------------------------------------------------------------------------------------------------------
 // Main loop
 //------------------------------------------------------------------------------------------------------
-void loop()                         
+void loop()
 {
   read_data();                         // read data from inputs
   run_charger();                       // run the charger state machine
@@ -232,10 +234,10 @@ void loop()
   load_control();                      // control the connected load
   led_output();                        // led indication
   lcd_display();                       // lcd display
+#if ENABLE_DATALOGGER
   wifi_datalog();                    // sends data to thingspeak
-  
+#endif
 }
-
 
 //------------------------------------------------------------------------------------------------------
 // This routine reads and averages the analog inputs for this system, solar volts, solar amps and 
