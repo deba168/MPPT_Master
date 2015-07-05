@@ -122,7 +122,70 @@ SoftwareSerial ser(2,3); // RX, TX
 //------------------------------------------------------------------------------------------------------
 /////////////////////////////////////////BIT MAP ARRAY//////////////////////////////////////////////////
 //-------------------------------------------------------------------------------------------------------
-byte solar[8] = //icon for termometer
+
+byte battery_icons[6][8]=
+{{
+  0b01110,
+  0b11011,
+  0b10001,
+  0b10001,
+  0b10001,
+  0b10001,
+  0b10001,
+  0b11111,
+},
+{
+  0b01110,
+  0b11011,
+  0b10001,
+  0b10001,
+  0b10001,
+  0b10001,
+  0b11111,
+  0b11111,
+},
+{
+  0b01110,
+  0b11011,
+  0b10001,
+  0b10001,
+  0b10001,
+  0b11111,
+  0b11111,
+  0b11111,
+},
+{
+  0b01110,
+  0b11011,
+  0b10001,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+},
+{
+  0b01110,
+  0b11011,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+},
+{
+  0b01110,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+}};
+#define SOLAR_ICON 6
+byte solar_icon[8] = //icon for termometer
 {
   0b11111,
   0b10101,
@@ -133,20 +196,8 @@ byte solar[8] = //icon for termometer
   0b11111,
   0b00000
 };
-
-byte battery[8]=
-{
-  0b01110,
-  0b11011,
-  0b10001,
-  0b10001,
-  0b11111,
-  0b11111,
-  0b11111,
-  0b11111,
-};
-
-byte _PWM [8]=
+#define PWM_ICON 7
+byte _PWM_icon[8]=
 {
   0b11101,
   0b10101,
@@ -156,6 +207,16 @@ byte _PWM [8]=
   0b10101,
   0b10101,
   0b10111,
+};
+byte backslash_char[8] {
+  0b10000,
+  0b10000,
+  0b01000,
+  0b01000,
+  0b00100,
+  0b00100,
+  0b00010,
+  0b00010,
 };
 //-------------------------------------------------------------------------------------------------------
 
@@ -193,10 +254,16 @@ void setup()                           // run once, when the sketch starts
   charger_state = off;                 // start with charger state as off
 
   lcd.begin(20,4);   // initialize the lcd for 16 chars 2 lines, turn on backlight
+
+  // create the LCD special characters. Characters 0-5 are the various battery fullness icons
+  // icon 7 is for the PWM icon, and icon 8 is for the solar array
   lcd.backlight();
-  lcd.createChar(1,solar);
-  lcd.createChar(2,battery);
-  lcd.createChar(3,_PWM);
+  for (int batchar = 0; batchar < 6; ++batchar) {
+    lcd.createChar(batchar, battery_icons[batchar]);
+  }
+  lcd.createChar(PWM_ICON,_PWM_icon);
+  lcd.createChar(SOLAR_ICON,solar_icon);
+  lcd.createChar('\\', backslash_char);
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_YELLOW, OUTPUT);
@@ -216,11 +283,9 @@ void setup()                           // run once, when the sketch starts
   lcd.setCursor(0, 0);
   lcd.print("SOL");
   lcd.setCursor(4, 0);
-  lcd.write(1);
+  lcd.write(SOLAR_ICON);
   lcd.setCursor(8, 0);
   lcd.print("BAT");
-  lcd.setCursor(12, 0);
-  lcd.write(2);
 }
 
 //------------------------------------------------------------------------------------------------------
@@ -545,12 +610,16 @@ void lcd_display()
  //-----------------------------------------------------------
  //--------------------Battery State Of Charge ---------------
  //-----------------------------------------------------------
- lcd.setCursor(8,3);
  int pct = 100.0*(bat_volts - 11.3)/(12.7 - 11.3);
  if (pct < 0)
      pct = 0;
  else if (pct > 100)
      pct = 100;
+
+ lcd.setCursor(12,0);
+ lcd.print((char)(pct*5/100));
+
+ lcd.setCursor(8,3);
  pct = pct - (pct%10);
  lcd.print(pct);
  lcd.print("%  ");
@@ -561,12 +630,12 @@ void lcd_display()
  lcd.setCursor(15,0);
  lcd.print("PWM");
  lcd.setCursor(19,0);
- lcd.write(3);
+ lcd.write(PWM_ICON);
  lcd.setCursor(15,1);
  lcd.print("   ");
  lcd.setCursor(15,1);
  lcd.print(pwm); 
- lcd.print("%");
+ lcd.print("% ");
  //----------------------------------------------------------------------
  //------------------------Load Status-----------------------------------
  //----------------------------------------------------------------------
@@ -593,9 +662,9 @@ void backLight_timer(){
 }
 void spinner(void) {
   static int cspinner;
-  static char spinner_chars[] = { '/','-','\\','|' };
+  static char spinner_chars[] = { '*','*', '*', ' ', ' '};
   cspinner++;
-  lcd.print(spinner_chars[cspinner%4]);
+  lcd.print(spinner_chars[cspinner%sizeof(spinner_chars)]);
 }
 
 //-------------------------------------------------------------------------
