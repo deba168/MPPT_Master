@@ -54,7 +54,13 @@
 ///////// Definitions /////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-#define ENABLE_DATALOGGER 0
+// Turn this on to use the ESP8266 chip. If you set this to 0, the periodic updates will not happen
+#define ENABLE_DATALOGGER 1
+
+// Load control algorithm
+// 0 - NIGHT LIGHT: Load ON when there is no solar power and battery is above LVD (low voltage disconnect)
+// 1 - POWER DUMP: Load ON when there is solar power and the battery is above BATT_FLOAT (charged)
+#define LOAD_ALGORITHM 0
 
 #define SOL_AMPS_CHAN 1                // Defining the adc channel to read solar amps
 #define SOL_VOLTS_CHAN 0               // defining the adc channel to read solar volts
@@ -121,7 +127,70 @@ SoftwareSerial ser(2,3); // RX, TX
 //------------------------------------------------------------------------------------------------------
 /////////////////////////////////////////BIT MAP ARRAY//////////////////////////////////////////////////
 //-------------------------------------------------------------------------------------------------------
-byte solar[8] = //icon for termometer
+
+byte battery_icons[6][8]=
+{{
+  0b01110,
+  0b11011,
+  0b10001,
+  0b10001,
+  0b10001,
+  0b10001,
+  0b10001,
+  0b11111,
+},
+{
+  0b01110,
+  0b11011,
+  0b10001,
+  0b10001,
+  0b10001,
+  0b10001,
+  0b11111,
+  0b11111,
+},
+{
+  0b01110,
+  0b11011,
+  0b10001,
+  0b10001,
+  0b10001,
+  0b11111,
+  0b11111,
+  0b11111,
+},
+{
+  0b01110,
+  0b11011,
+  0b10001,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+},
+{
+  0b01110,
+  0b11011,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+},
+{
+  0b01110,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b11111,
+}};
+#define SOLAR_ICON 6
+byte solar_icon[8] = //icon for termometer
 {
   0b11111,
   0b10101,
@@ -132,20 +201,8 @@ byte solar[8] = //icon for termometer
   0b11111,
   0b00000
 };
-
-byte battery[8]=
-{
-  0b01110,
-  0b11011,
-  0b10001,
-  0b10001,
-  0b11111,
-  0b11111,
-  0b11111,
-  0b11111,
-};
-
-byte _PWM [8]=
+#define PWM_ICON 7
+byte _PWM_icon[8]=
 {
   0b11101,
   0b10101,
@@ -155,6 +212,16 @@ byte _PWM [8]=
   0b10101,
   0b10101,
   0b10111,
+};
+byte backslash_char[8] {
+  0b10000,
+  0b10000,
+  0b01000,
+  0b01000,
+  0b00100,
+  0b00100,
+  0b00010,
+  0b00010,
 };
 //-------------------------------------------------------------------------------------------------------
 
@@ -172,7 +239,7 @@ unsigned long time = 0;               // variable to store time the back light c
 int delta = PWM_INC;                  // variable used to modify pwm duty cycle for the ppt algorithm
 int pwm = 0;                          // pwm duty cycle 0-100%
 int back_light_pin_State = 0;         // variable for storing the state of the backlight button
-int load_status = 0;                  // variable for storing the load output state (for writing to LCD)
+boolean load_status = false;                  // variable for storing the load output state (for writing to LCD)
   
 enum charger_mode {off, on, bulk, bat_float} charger_state;    // enumerated variable that holds state for charger state machine
 // set the LCD address to 0x27 for a 20 chars 4 line display
@@ -190,11 +257,18 @@ void setup()                           // run once, when the sketch starts
   pinMode(PWM_ENABLE_PIN, OUTPUT);     // sets the digital pin as output
   TURN_OFF_MOSFETS;                    // turn off MOSFET driver chip
   charger_state = off;                 // start with charger state as off
+
   lcd.begin(20,4);   // initialize the lcd for 16 chars 2 lines, turn on backlight
+
+  // create the LCD special characters. Characters 0-5 are the various battery fullness icons
+  // icon 7 is for the PWM icon, and icon 8 is for the solar array
   lcd.backlight();
-  lcd.createChar(1,solar);
-  lcd.createChar(2,battery);
-  lcd.createChar(3,_PWM);
+  for (int batchar = 0; batchar < 6; ++batchar) {
+    lcd.createChar(batchar, battery_icons[batchar]);
+  }
+  lcd.createChar(PWM_ICON,_PWM_icon);
+  lcd.createChar(SOLAR_ICON,solar_icon);
+  lcd.createChar('\\', backslash_char);
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_YELLOW, OUTPUT);
@@ -214,17 +288,15 @@ void setup()                           // run once, when the sketch starts
   lcd.setCursor(0, 0);
   lcd.print("SOL");
   lcd.setCursor(4, 0);
-  lcd.write(1);
+  lcd.write(SOLAR_ICON);
   lcd.setCursor(8, 0);
   lcd.print("BAT");
-  lcd.setCursor(12, 0);
-  lcd.write(2);
 }
 
 //------------------------------------------------------------------------------------------------------
 // Main loop
 //------------------------------------------------------------------------------------------------------
-void loop()                         
+void loop()
 {
   read_data();                         // read data from inputs
   run_charger();                       // run the charger state machine
@@ -232,10 +304,10 @@ void loop()
   load_control();                      // control the connected load
   led_output();                        // led indication
   lcd_display();                       // lcd display
+#if ENABLE_DATALOGGER
   wifi_datalog();                    // sends data to thingspeak
-  
+#endif
 }
-
 
 //------------------------------------------------------------------------------------------------------
 // This routine reads and averages the analog inputs for this system, solar volts, solar amps and 
@@ -397,9 +469,11 @@ void run_charger(void) {
       }                                                     // battery has been disconnected
       else if ((bat_volts > BATT_FLOAT) && (sol_volts > bat_volts)) {
         charger_state = bat_float;                          // if battery voltage is still high and solar volts are high
+        TURN_ON_MOSFETS;
       }    
       else if ((bat_volts > MIN_BAT_VOLTS) && (bat_volts < BATT_FLOAT) && (sol_volts > bat_volts)) {
         charger_state = bulk;
+        TURN_ON_MOSFETS;
       }
       break;
     default:
@@ -411,15 +485,22 @@ void run_charger(void) {
 //----------------------------------------------------------------------------------------------------------------------
 /////////////////////////////////////////////LOAD CONTROL/////////////////////////////////////////////////////
 //----------------------------------------------------------------------------------------------------------------------  
-  
+
 void load_control(){
-  if ((sol_watts < MIN_SOL_WATTS) && (bat_volts > LVD)){   // If the panel isn't producing, it's probably night
-    digitalWrite(LOAD_PIN, LOW);                           // turn the load on
-    load_status = 1;                                       // record that the load is on
-  }
-  else{                                                    // If the panel is producing, it's day time
-    digitalWrite(LOAD_PIN, HIGH);                          // turn the load off
-    load_status = 0;                                       // record that the load is off
+#if LOAD_ALGORITHM == 0
+  // turn on loads at night when the solar panel is not producing power
+  // as long as the battery voltage is above LVD
+  load_on(sol_watts < MIN_SOL_WATTS && bat_volts > LVD);
+#else
+  // dump excess solar energy into the load circuit
+  load_on(sol_watts > MIN_SOL_WATTS && bat_volts > BATT_FLOAT);
+#endif
+}
+
+void load_on(boolean new_status) {
+  if (load_status != new_status) {
+    load_status = new_status;
+    digitalWrite(LOAD_PIN, new_status ? HIGH : LOW);
   }
 }
 
@@ -541,12 +622,16 @@ void lcd_display()
  //-----------------------------------------------------------
  //--------------------Battery State Of Charge ---------------
  //-----------------------------------------------------------
- lcd.setCursor(8,3);
  int pct = 100.0*(bat_volts - 11.3)/(12.7 - 11.3);
  if (pct < 0)
      pct = 0;
  else if (pct > 100)
      pct = 100;
+
+ lcd.setCursor(12,0);
+ lcd.print((char)(pct*5/100));
+
+ lcd.setCursor(8,3);
  pct = pct - (pct%10);
  lcd.print(pct);
  lcd.print("%  ");
@@ -557,19 +642,19 @@ void lcd_display()
  lcd.setCursor(15,0);
  lcd.print("PWM");
  lcd.setCursor(19,0);
- lcd.write(3);
+ lcd.write(PWM_ICON);
  lcd.setCursor(15,1);
  lcd.print("   ");
  lcd.setCursor(15,1);
  lcd.print(pwm); 
- lcd.print("%");
+ lcd.print("% ");
  //----------------------------------------------------------------------
  //------------------------Load Status-----------------------------------
  //----------------------------------------------------------------------
  lcd.setCursor(15,2);
  lcd.print("Load");
  lcd.setCursor(15,3);
- if (load_status == 1)
+ if (load_status)
  {
     lcd.print("On  ");
  }
@@ -585,15 +670,13 @@ void backLight_timer(){
   if((millis() - time) <= 15000)         // if it's been less than the 15 secs, turn the backlight on
       lcd.backlight();                   // finish with backlight on  
   else 
-      lcd.noBacklight();                 // if it's been more than 15 secs, turn the backlight off 
-      
-
+      lcd.noBacklight();                 // if it's been more than 15 secs, turn the backlight off
 }
 void spinner(void) {
   static int cspinner;
-  static char spinner_chars[] = { '/','-','\\','|' };
+  static char spinner_chars[] = { '*','*', '*', ' ', ' '};
   cspinner++;
-  lcd.print(spinner_chars[cspinner%4]);
+  lcd.print(spinner_chars[cspinner%sizeof(spinner_chars)]);
 }
 
 //-------------------------------------------------------------------------
