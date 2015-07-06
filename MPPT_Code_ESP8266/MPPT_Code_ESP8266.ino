@@ -55,7 +55,7 @@
 
 
 // Turn this on to use the ESP8266 chip. If you set this to 0, the periodic updates will not happen
-#define ENABLE_DATALOGGER 1
+#define ENABLE_DATALOGGER 0
 
 // Load control algorithm
 // 0 - NIGHT LIGHT: Load ON when there is no solar power and battery is above LVD (low voltage disconnect)
@@ -64,7 +64,6 @@
 
 #define SOL_AMPS_CHAN 1                // Defining the adc channel to read solar amps
 #define SOL_VOLTS_CHAN 0               // defining the adc channel to read solar volts
-#define SOL_AMPS_CHAN 1                // Defining the adc channel to read solar amps
 #define BAT_VOLTS_CHAN 2               // defining the adc channel to read battery volts
 #define AVG_NUM 8                      // number of iterations of the adc routine to average the adc readings
 
@@ -239,7 +238,7 @@ unsigned long time = 0;               // variable to store time the back light c
 int delta = PWM_INC;                  // variable used to modify pwm duty cycle for the ppt algorithm
 int pwm = 0;                          // pwm duty cycle 0-100%
 int back_light_pin_State = 0;         // variable for storing the state of the backlight button
-boolean load_status = false;                  // variable for storing the load output state (for writing to LCD)
+boolean load_status = false;          // variable for storing the load output state (for writing to LCD)
   
 enum charger_mode {off, on, bulk, bat_float} charger_state;    // enumerated variable that holds state for charger state machine
 // set the LCD address to 0x27 for a 20 chars 4 line display
@@ -257,13 +256,12 @@ void setup()                           // run once, when the sketch starts
   pinMode(PWM_ENABLE_PIN, OUTPUT);     // sets the digital pin as output
   TURN_OFF_MOSFETS;                    // turn off MOSFET driver chip
   charger_state = off;                 // start with charger state as off
-
-  lcd.begin(20,4);   // initialize the lcd for 16 chars 2 lines, turn on backlight
+  lcd.begin(20,4);                     // initialize the lcd for 16 chars 2 lines, turn on backlight
 
   // create the LCD special characters. Characters 0-5 are the various battery fullness icons
   // icon 7 is for the PWM icon, and icon 8 is for the solar array
   lcd.backlight();
-  for (int batchar = 0; batchar < 6; ++batchar) {
+  for (int batchar = 0; batchar <   6; ++batchar) {
     lcd.createChar(batchar, battery_icons[batchar]);
   }
   lcd.createChar(PWM_ICON,_PWM_icon);
@@ -276,13 +274,13 @@ void setup()                           // run once, when the sketch starts
   Timer1.pwm(PWM_PIN, 0);              // setup pwm on pin 9, 0% duty cycle
   Timer1.attachInterrupt(callback);    // attaches callback() as a timer overflow interrupt
   Serial.begin(9600);                  // open the serial port at 9600 bps:
-  ser.begin(9600);       // enable software serial
-  ser.println("AT+RST");  // reset ESP8266
+  ser.begin(9600);                     // enable software serial
+  ser.println("AT+RST");               // reset ESP8266
   pwm = PWM_START;                     //starting value for pwm  
   pinMode(BACK_LIGHT_PIN, INPUT);
   pinMode(LOAD_PIN,OUTPUT);
-  digitalWrite(LOAD_PIN,LOW);  // default load state is OFF
-  digitalWrite(BACK_LIGHT_PIN,LOW);  // default LCd back light is OFF
+  digitalWrite(LOAD_PIN,LOW);          // default load state is OFF
+  digitalWrite(BACK_LIGHT_PIN,LOW);    //  default LCd back light is OFF
 
   // display the constant stuff on the LCD
   lcd.setCursor(0, 0);
@@ -333,7 +331,7 @@ int read_adc(int channel){
 //------------------------------------------------------------------------------------------------------
 void read_data(void) {
   
-  sol_amps = (read_adc(SOL_AMPS_CHAN) * SOL_AMPS_SCALE -12.01);    //input of solar amps
+  sol_amps = (read_adc(SOL_AMPS_CHAN) * SOL_AMPS_SCALE -13.51);    //input of solar amps
   sol_volts = read_adc(SOL_VOLTS_CHAN) * SOL_VOLTS_SCALE;          //input of solar volts 
   bat_volts = read_adc(BAT_VOLTS_CHAN) * BAT_VOLTS_SCALE;          //input of battery volts 
   sol_watts = sol_amps * sol_volts ;                               //calculations of solar watts                  
@@ -520,6 +518,9 @@ void print_data(void) {
   Serial.print("      ");
 
   Serial.print("pwm = ");
+  if(charger_state == off)
+  Serial.print(0,DEC);
+  else
   Serial.print(pwm,DEC);
   Serial.print("      ");
 
@@ -646,6 +647,9 @@ void lcd_display()
  lcd.setCursor(15,1);
  lcd.print("   ");
  lcd.setCursor(15,1);
+ if( charger_state == off)
+ lcd.print(0);
+ else
  lcd.print(pwm); 
  lcd.print("% ");
  //----------------------------------------------------------------------
