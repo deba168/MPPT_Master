@@ -5,9 +5,9 @@
 //
 //  This code is for an arduino Nano based Solar MPPT charge controller.
 //  This code is a modified version of sample code from www.timnolan.com
-//  updated 07/06/2015
+//  updated 06/07/2015
 //
-//  Mods by Aplavins 06/19/2015 
+//  Mods by Aplavins 19/06/2015 
 
 ////  Specifications :  //////////////////////////////////////////////////////////////////////////////////////////////////////
                                                                                                                             //
