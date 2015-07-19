@@ -212,7 +212,8 @@ byte _PWM_icon[8]=
   0b10101,
   0b10111,
 };
-byte backslash_char[8] {
+byte backslash_char[8]= 
+{
   0b10000,
   0b10000,
   0b01000,
@@ -706,7 +707,7 @@ void wifi_datalog()
   cmd += "\",80";
   ser.println(cmd);
    
-  if(ser.find("Error")){
+  if(ser.find((char *)"Error")){
     Serial.println("AT+CIPSTART error");
     return;
   }
@@ -723,7 +724,7 @@ void wifi_datalog()
   cmd += String(getStr.length());
   ser.println(cmd);
 
-  if(ser.find(">")){
+  if(ser.find((char *)">")){
     ser.print(getStr);
   }
   else{
