@@ -102,9 +102,9 @@
   
 //------------------------------------------------------------------------------------------------------
 //Defining led pins for indication
-#define LED_RED 11
-#define LED_GREEN 12
-#define LED_YELLOW 13
+#define LED_GREEN 11
+#define LED_YELLOW 12
+#define LED_RED 13
 //-----------------------------------------------------------------------------------------------------
 // Defining load control pin
 #define LOAD_PIN 6       // pin-2 is used to control the load
